@@ -47,6 +47,26 @@ init_window :: proc(app: ^App) {
     }
 }
 
+init_camera :: proc(app: ^App) {
+    app.camera.p_camera_ids = sdl.GetCameras(&app.camera.count_cameras)
+    if (app.camera.p_camera_ids == nil) {
+        sdl.LogError(i32(sdl.LogCategory.ERROR), "Could not create window: %s", sdl.GetError())
+    }
+    sdl.Log("number of cameras: %d", app.camera.count_cameras)
+
+    if (app.camera.count_cameras == 0) {
+        sdl.LogError(i32(sdl.LogCategory.ERROR), "No Cameras found")
+        os.exit(1)
+    }
+
+    app.camera.camera_id = ([^]sdl.CameraID)(app.camera.p_camera_ids)[app.camera.selected_index]
+    app.camera.p_camera = sdl.OpenCamera(app.camera.camera_id, nil)
+    if (app.camera.p_camera == nil) {
+        sdl.LogError(i32(sdl.LogCategory.ERROR), "Could not open camera: %s", sdl.GetError())
+        os.exit(1)
+    }
+}
+
 main :: proc() {
     app: App
 
@@ -61,5 +81,6 @@ main :: proc() {
     defer sdl.Quit()
 
     init_window(&app)
+    init_camera(&app)
 
 }

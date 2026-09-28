@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:strings"
 import "core:time"
 import "core:os"
+import "core:slice"
 import sdl "vendor:sdl3"
 
 Window :: struct {
@@ -16,30 +17,42 @@ Window :: struct {
 }
 
 Camera :: struct {
-    camera_id: sdl.CameraID,
-    p_camera_ids: ^sdl.CameraID,
+    camera_ids: []sdl.CameraID,
     p_camera: ^sdl.Camera,
-    count_cameras: i32,         // REVIEW: might need to change this to u32
-    selected_index: i32
+    selected_index: int
+}
+
+Window_Reset_Mode :: enum {
+    None,
+    Larget_Side,
+    Smaller_Side,
+}
+
+Snapshot_Requested :: enum {
+    None,
+    Fullsize,
+    Screensize,
+}
+
+Render_Mode :: enum {
+    Standard,
+    Ascii,
 }
 
 App :: struct {
-    event: sdl.Event,
-    window: Window,
-    camera: Camera,
     p_sdlwindow: ^sdl.Window,
     p_renderer: ^sdl.Renderer,
     p_texture: sdl.Texture,
     p_ascii_texture: sdl.Texture,
+    event: sdl.Event,
+    window: Window,
+    cameras: Camera,
+
+    render_mode: Render_Mode,
+    window_reset_mode: Window_Reset_Mode,
+    snapshot_requested: Snapshot_Requested,
+
     quit: bool,
-    // TODO: set to enum or other
-    ascii_mode: bool,
-    // TODO: set to enum or other
-    reset_to_larger_side_of_window: bool,
-    reset_to_smaller_side_of_window: bool,
-    // TODO: set to enum or other
-    fullsize_snapshot_requested: bool,
-    screensize_snapshot_requested: bool,
 }
 
 init_window :: proc(app: ^App) {
@@ -58,20 +71,22 @@ init_window :: proc(app: ^App) {
 }
 
 init_camera :: proc(app: ^App) {
-    app.camera.p_camera_ids = sdl.GetCameras(&app.camera.count_cameras)
-    if (app.camera.p_camera_ids == nil) {
-        sdl.LogError(i32(sdl.LogCategory.ERROR), "Could not create window: %s", sdl.GetError())
-    }
-    sdl.Log("number of cameras: %d", app.camera.count_cameras)
+    // app.camera.p_camera_ids = sdl.GetCameras(&app.camera.count_cameras)
 
-    if (app.camera.count_cameras == 0) {
-        sdl.LogError(i32(sdl.LogCategory.ERROR), "No Cameras found")
+    count: i32
+    p_camera_ids := sdl.GetCameras(&count)
+
+    if p_camera_ids != nil && count > 0 {
+        app.cameras.camera_ids = slice.from_ptr(p_camera_ids, int(count))
+        sdl.Log("number of cameras: %d", count)
+    } else {
+        sdl.LogError(i32(sdl.LogCategory.ERROR), "Could not find cameras: %s", sdl.GetError())
         os.exit(1)
     }
 
-    app.camera.camera_id = ([^]sdl.CameraID)(app.camera.p_camera_ids)[app.camera.selected_index]
-    app.camera.p_camera = sdl.OpenCamera(app.camera.camera_id, nil)
-    if (app.camera.p_camera == nil) {
+    app.cameras.selected_index = 0
+    app.cameras.p_camera = sdl.OpenCamera(p_camera_ids[app.cameras.selected_index], nil)
+    if (app.cameras.p_camera == nil) {
         sdl.LogError(i32(sdl.LogCategory.ERROR), "Could not open camera: %s", sdl.GetError())
         os.exit(1)
     }
@@ -98,7 +113,7 @@ camera_render_loop :: proc(app: ^App) {
         clear_render_to_dark_grey(app)
 
         timestamp_ns: u64
-        p_cam_surface: ^sdl.Surface = sdl.AcquireCameraFrame(app.camera.p_camera, &timestamp_ns)
+        p_cam_surface: ^sdl.Surface = sdl.AcquireCameraFrame(app.cameras.p_camera, &timestamp_ns)
 
         // TODO: Update textures
         // TODO: Render textures
@@ -118,11 +133,9 @@ main :: proc() {
     app.window.h = 600
     app.window.flags = sdl.WINDOW_RESIZABLE
     app.quit = false
-    app.ascii_mode = false
-    app.reset_to_larger_side_of_window = false
-    app.reset_to_smaller_side_of_window = false
-    app.fullsize_snapshot_requested = false
-    app.screensize_snapshot_requested = false
+    app.render_mode = Render_Mode.Standard
+    app.window_reset_mode = Window_Reset_Mode.None
+    app.snapshot_requested = Snapshot_Requested.None
 
     if !sdl.Init(sdl.INIT_CAMERA + sdl.INIT_VIDEO) {
         fmt.println("SDL_Init Error:", sdl.GetError())

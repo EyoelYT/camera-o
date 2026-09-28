@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:strings"
+import "core:time"
 import "core:os"
 import sdl "vendor:sdl3"
 
@@ -12,8 +13,6 @@ Window :: struct {
     w: i32,
     h: i32,
     flags: sdl.WindowFlags,
-    on_top: bool,
-    bordered: bool
 }
 
 Camera :: struct {
@@ -29,7 +28,18 @@ App :: struct {
     window: Window,
     camera: Camera,
     p_sdlwindow: ^sdl.Window,
-    p_renderer:^sdl.Renderer,
+    p_renderer: ^sdl.Renderer,
+    p_texture: sdl.Texture,
+    p_ascii_texture: sdl.Texture,
+    quit: bool,
+    // TODO: set to enum or other
+    ascii_mode: bool,
+    // TODO: set to enum or other
+    reset_to_larger_side_of_window: bool,
+    reset_to_smaller_side_of_window: bool,
+    // TODO: set to enum or other
+    fullsize_snapshot_requested: bool,
+    screensize_snapshot_requested: bool,
 }
 
 init_window :: proc(app: ^App) {
@@ -67,12 +77,52 @@ init_camera :: proc(app: ^App) {
     }
 }
 
+clear_render_to_dark_grey :: proc(app: ^App) {
+    sdl.SetRenderDrawColor(app.p_renderer, 18, 18, 18, 0)
+    sdl.RenderClear(app.p_renderer)
+}
+
+init_camera_renderer :: proc(app: ^App) {
+    app.p_renderer = sdl.CreateRenderer(app.p_sdlwindow, nil)
+    clear_render_to_dark_grey(app)
+    sdl.RenderPresent(app.p_renderer)
+}
+
+camera_render_loop :: proc(app: ^App) {
+    for app.quit != true {
+        for sdl.PollEvent(&app.event) != false {
+            //handle_event(app)
+        }
+
+        // Clear every frame
+        clear_render_to_dark_grey(app)
+
+        timestamp_ns: u64
+        p_cam_surface: ^sdl.Surface = sdl.AcquireCameraFrame(app.camera.p_camera, &timestamp_ns)
+
+        // TODO: Update textures
+        // TODO: Render textures
+        sdl.RenderPresent(app.p_renderer)
+
+        // Sleep targeting 60 FPS
+        duration := 16667 * time.Microsecond
+        time.sleep(duration)
+
+    }
+}
+
 main :: proc() {
     app: App
 
     app.window.w = 800
     app.window.h = 600
     app.window.flags = sdl.WINDOW_RESIZABLE
+    app.quit = false
+    app.ascii_mode = false
+    app.reset_to_larger_side_of_window = false
+    app.reset_to_smaller_side_of_window = false
+    app.fullsize_snapshot_requested = false
+    app.screensize_snapshot_requested = false
 
     if !sdl.Init(sdl.INIT_CAMERA + sdl.INIT_VIDEO) {
         fmt.println("SDL_Init Error:", sdl.GetError())
@@ -82,5 +132,7 @@ main :: proc() {
 
     init_window(&app)
     init_camera(&app)
+    init_camera_renderer(&app)
+    camera_render_loop(&app)
 
 }

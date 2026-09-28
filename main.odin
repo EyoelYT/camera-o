@@ -103,10 +103,26 @@ init_camera_renderer :: proc(app: ^App) {
     sdl.RenderPresent(app.p_renderer)
 }
 
+handle_event :: proc(app: ^App) {
+    #partial switch app.event.type {
+    case .QUIT:
+        app.quit = true
+    case .KEY_DOWN:
+    //handle_keydown_keybinds(app)
+    case .CAMERA_DEVICE_APPROVED:
+        sdl.Log("Camera approved!")
+    case .CAMERA_DEVICE_DENIED:
+        sdl.Log("Camera denied!");
+        sdl.ShowSimpleMessageBox({.ERROR}, "Camera permission denied!", "User denied access to the camera!", app.p_sdlwindow);
+        app.quit = true;
+    case:
+    }
+}
+
 camera_render_loop :: proc(app: ^App) {
     for app.quit != true {
         for sdl.PollEvent(&app.event) != false {
-            //handle_event(app)
+            handle_event(app)
         }
 
         // Clear every frame

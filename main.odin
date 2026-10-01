@@ -103,12 +103,26 @@ init_camera_renderer :: proc(app: ^App) {
     sdl.RenderPresent(app.p_renderer)
 }
 
+handle_keydown_keybinds :: proc(app: ^App) {
+    #partial switch app.event.key.scancode {
+    case .T:
+        is_always_on_top := .ALWAYS_ON_TOP in app.window.flags
+        sdl.SetWindowAlwaysOnTop(app.p_sdlwindow, !is_always_on_top)
+        app.window.flags ~= {.ALWAYS_ON_TOP}
+    case .B:
+        is_bordered := !(.BORDERLESS in app.window.flags)
+        sdl.SetWindowBordered(app.p_sdlwindow, !is_bordered)
+        app.window.flags ~= {.BORDERLESS}
+    case:
+    }
+}
+
 handle_event :: proc(app: ^App) {
     #partial switch app.event.type {
     case .QUIT:
         app.quit = true
     case .KEY_DOWN:
-    //handle_keydown_keybinds(app)
+        handle_keydown_keybinds(app)
     case .CAMERA_DEVICE_APPROVED:
         sdl.Log("Camera approved!")
     case .CAMERA_DEVICE_DENIED:
